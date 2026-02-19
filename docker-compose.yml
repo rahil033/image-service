@@ -1,13 +1,15 @@
-version: '3.8'
+version: "3.8"
+
 services:
   localstack:
-    image: localstack/localstack:latest
+    image: localstack/localstack
+    container_name: localstack
     ports:
-      - '4566:4566' # Edge port for all services
+      - "4566:4566"
     environment:
-      - SERVICES=s3 # Add more services as needed
+      - SERVICES=s3,dynamodb,lambda,apigateway,iam
       - DEBUG=1
-      - DATA_DIR=/tmp/localstack/data
+      - AWS_DEFAULT_REGION=us-east-1
     volumes:
-      - ./localstack-data:/tmp/localstack/data
-      - /var/run/docker.sock:/var/run/docker.sock
+      - "./localstack:/var/lib/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"

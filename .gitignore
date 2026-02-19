@@ -33,3 +33,4 @@ venv.bak/
 .vscode/
 *.swp
 *.swo
+localstack/
