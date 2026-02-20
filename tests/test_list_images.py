@@ -61,6 +61,18 @@ class TestListImages(BaseTestCase):
         body = self.assertSuccess(response)
         self.assertEqual(body['count'], 1)
 
+    def test_list_images_invalid_limit_non_integer(self):
+        """Test listing images with non-integer limit."""
+        event = self.create_api_event(query_params={'limit': 'abc'})
+        response = handler(event, self.mock_context)
+        self.assertError(response, 400)
+
+    def test_list_images_invalid_limit_out_of_range(self):
+        """Test listing images with out-of-range limit."""
+        event = self.create_api_event(query_params={'limit': '0'})
+        response = handler(event, self.mock_context)
+        self.assertError(response, 400)
+
 
 if __name__ == '__main__':
     unittest.main()

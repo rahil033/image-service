@@ -16,7 +16,7 @@ from ..common.utils import (
     validate_required_fields
 )
 from ..common.config import Config
-from ..common.errors import StorageError, DatabaseError, NotFoundError
+from ..common.errors import StorageError, DatabaseError, NotFoundError, ValidationError
 
 logger = get_logger(__name__)
 
@@ -95,6 +95,9 @@ class ImageService:
     def list_images(self, user_id=None, tags=None, limit=50, last_key=None):
         """List images with optional filters."""
         logger.info("Listing images", user_id=user_id, tags=tags, limit=limit)
+
+        if limit < 1 or limit > 100:
+            raise ValidationError('limit must be between 1 and 100')
         
         # Parse tags
         tags_list = None
@@ -102,7 +105,13 @@ class ImageService:
             tags_list = [tag.strip() for tag in tags.split(',') if tag.strip()]
         
         # Parse pagination key
-        last_evaluated_key = json.loads(last_key) if last_key else None
+        try:
+            last_evaluated_key = json.loads(last_key) if last_key else None
+        except json.JSONDecodeError:
+            raise ValidationError('last_key must be valid JSON')
+
+        if last_evaluated_key is not None and not isinstance(last_evaluated_key, dict):
+            raise ValidationError('last_key must be a JSON object')
         
         # Get metadata from DynamoDB
         metadata_list, next_key = self.metadata_repo.list_metadata(

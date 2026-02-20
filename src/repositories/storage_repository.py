@@ -2,6 +2,7 @@
 S3 storage repository.
 """
 import boto3
+from botocore.exceptions import ClientError
 from ..common.logger import get_logger
 from ..common.errors import StorageError
 from ..common.config import Config, get_aws_endpoint
@@ -55,8 +56,12 @@ class StorageRepository:
         try:
             self.s3_client.head_object(Bucket=self.bucket_name, Key=s3_key)
             return True
-        except self.s3_client.exceptions.NoSuchKey:
-            return False
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code')
+            if error_code in ('404', 'NoSuchKey', 'NotFound'):
+                return False
+            logger.error("Error checking image existence", s3_key=s3_key, error=str(e))
+            raise StorageError(f"Failed to check image existence: {str(e)}", operation='check')
         except Exception as e:
             logger.error("Error checking image existence", s3_key=s3_key, error=str(e))
             raise StorageError(f"Failed to check image existence: {str(e)}", operation='check')
@@ -78,4 +83,4 @@ class StorageRepository:
             return url
         except Exception as e:
             logger.error("Failed to generate presigned URL", s3_key=s3_key, error=str(e))
-            return f"s3://{self.bucket_name}/{s3_key}"
+            raise StorageError(f"Failed to generate presigned URL: {str(e)}", operation='presign')

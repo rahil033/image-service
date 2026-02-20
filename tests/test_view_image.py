@@ -45,6 +45,24 @@ class TestViewImage(BaseTestCase):
         response = handler(event, self.mock_context)
         self.assertError(response, 404)
 
+    def test_view_image_invalid_expires_in_non_integer(self):
+        """Test viewing image with invalid expires_in value."""
+        event = self.create_api_event(
+            path_params={'image_id': 'img123'},
+            query_params={'expires_in': 'abc'}
+        )
+        response = handler(event, self.mock_context)
+        self.assertError(response, 400)
+
+    def test_view_image_invalid_expires_in_out_of_range(self):
+        """Test viewing image with out-of-range expires_in value."""
+        event = self.create_api_event(
+            path_params={'image_id': 'img123'},
+            query_params={'expires_in': '0'}
+        )
+        response = handler(event, self.mock_context)
+        self.assertError(response, 400)
+
 
 if __name__ == '__main__':
     unittest.main()

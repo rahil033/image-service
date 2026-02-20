@@ -42,7 +42,6 @@ class Config:
         return int(value)
 
 def get_aws_endpoint(service):
-    """Return LocalStack endpoint if USE_LOCALSTACK is set, else None."""
     if os.environ.get("USE_LOCALSTACK") == "1":
-        return "http://localhost:4566"
+        return os.environ.get("AWS_ENDPOINT_URL")
     return None

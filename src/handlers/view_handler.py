@@ -15,7 +15,15 @@ def handler(event, service):
     
     download = get_query_parameter(event, 'download', 'false').lower() == 'true'
     expires_in_str = get_query_parameter(event, 'expires_in')
-    expires_in = int(expires_in_str) if expires_in_str else None
+    expires_in = None
+    if expires_in_str:
+        try:
+            expires_in = int(expires_in_str)
+        except (TypeError, ValueError):
+            raise ValidationError('expires_in must be a valid integer')
+
+        if expires_in < 1 or expires_in > 604800:
+            raise ValidationError('expires_in must be between 1 and 604800 seconds')
     
     result = service.get_image(image_id, download, expires_in)
     return 200, result

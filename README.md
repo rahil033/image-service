@@ -1,222 +1,140 @@
 # Image Service
 
-A simple serverless image management service built with Python 3.12, AWS Lambda, S3, and DynamoDB.
+Serverless image management service built with Python, AWS Lambda, S3, and DynamoDB.
 
 ## Features
 
-- **Upload Images** - Upload images with metadata (tags, description, dimensions)
-- **List Images** - Get images with filters (user_id, tags)
-- **View/Download** - Get presigned URLs for viewing or downloading
-- **Delete Images** - Remove images and metadata
+- Upload images with metadata (`tags`, `description`, optional dimensions)
+- List images with filtering (`user_id`, `tags`) and pagination
+- View or download images through presigned URLs
+- Delete images and related metadata
 
 ## Architecture
 
-```
-API Gateway → Lambda → S3 + DynamoDB
+```mermaid
+flowchart LR
+    Client[Client / API Consumer]
+    APIGW[API Gateway]
+    Lambda[Lambda Handler]
+    Service[ImageService\nBusiness Logic]
+    S3[(Amazon S3\nImage Objects)]
+    DDB[(DynamoDB\nImage Metadata)]
+
+    Client --> APIGW
+    APIGW --> Lambda
+    Lambda --> Service
+    Service --> S3
+    Service --> DDB
+    S3 --> Service
+    DDB --> Service
+    Service --> Lambda
+    Lambda --> APIGW
+    APIGW --> Client
 ```
 
-**Components:**
-- **Lambda Functions**: 4 handlers (upload, list, view, delete)
-- **S3**: Image storage
-- **DynamoDB**: Metadata storage
+### Layers
+
+- `src/handlers/`: Lambda entry points and request/response mapping
+- `src/services/`: business logic and orchestration
+- `src/repositories/`: S3 and DynamoDB integrations
+- `src/models/`: data and response models
+- `src/common/`: shared config, validation, error, and logging utilities
 
 ## Project Structure
 
-```
+```text
 image-service/
 ├── src/
-│   ├── common/          # Config, logger, errors, utils
-│   ├── models/          # ImageMetadata, APIResponse
-│   ├── repositories/    # S3 and DynamoDB access
-│   ├── services/        # Business logic
-│   └── handlers/        # Lambda handlers
-├── tests/               # Unit tests
-│   ├── base_test.py
-│   ├── test_upload_image.py
-│   ├── test_list_images.py
-│   ├── test_view_image.py
-│   └── test_delete_image.py
+│   ├── common/
+│   ├── handlers/
+│   ├── models/
+│   ├── repositories/
+│   └── services/
+├── scripts/
+│   └── deploy.sh
+├── tests/
+├── docker-compose.yml
 ├── requirements.txt
 └── README.md
 ```
 
-## Installation
+## API Summary
+
+- `POST /images` - upload image
+- `GET /images` - list images (`user_id`, `tags`, `limit`, `last_key`)
+- `GET /images/{image_id}` - fetch image metadata + URL (`download`, `expires_in`)
+- `DELETE /images/{image_id}` - delete image
+
+### Validation Rules
+
+- `limit` must be an integer in range `1..100`
+- `expires_in` must be an integer in range `1..604800`
+- `last_key` (if provided) must be a valid JSON object
+
+## Prerequisites
+
+- Python 3.12+
+- Docker + Docker Compose
+- `awslocal` CLI (LocalStack wrapper)
+- `zip` utility
+
+## Local Development
+
+### 1) Install dependencies
 
 ```bash
-# Install dependencies
 pip install -r requirements.txt
 ```
 
-## Testing
+### 2) Start LocalStack
 
 ```bash
-# Run all tests
-python -m pytest tests/ -v
-
-# Run specific test
-python -m pytest tests/test_upload_image.py -v
-```
-
-**Test Results:** ✅ 14 tests passing
-
-## API Endpoints
-
-### Upload Image
-```
-POST /images
-{
-  "user_id": "user123",
-  "filename": "photo.jpg",
-  "image_data": "base64_encoded_data",
-  "tags": "vacation,beach",
-  "description": "Summer photo"
-}
-```
-
-### List Images
-```
-GET /images?user_id=user123&tags=vacation&limit=20
-```
-
-### View/Download Image
-```
-GET /images/{image_id}?download=true&expires_in=3600
-```
-
-### Delete Image
-```
-DELETE /images/{image_id}
-```
-
-## Environment Variables
-
-Set these when deploying to AWS:
-
-```bash
-BUCKET_NAME=your-s3-bucket-name
-TABLE_NAME=your-dynamodb-table-name
-AWS_DEFAULT_REGION=us-east-1
-MAX_IMAGE_SIZE=10485760  # 10MB
-```
-
-## Deployment
-
-1. Create S3 bucket and DynamoDB table in AWS
-2. Package Lambda functions with dependencies
-3. Deploy to AWS Lambda
-4. Configure API Gateway routes
-5. Set environment variables
-
-## LocalStack Development Environment
-
-This project uses [LocalStack](https://localstack.cloud/) for local AWS service emulation.
-
-### Quick Start
-
-1. **Start LocalStack**
-
-   ```sh
-   docker-compose up -d
-   ```
-
-   This will start LocalStack with S3 enabled. You can add more AWS services in `docker-compose.yml` as needed.
-
-2. **(Optional) Configure AWS CLI for LocalStack**
-
-   Install AWS CLI if you haven't:
-   ```sh
-   brew install awscli
-   ```
-
-   Configure AWS CLI to use LocalStack:
-   ```sh
-   aws configure --profile localstack
-   # Use dummy values for AWS Access Key/Secret
-   # Set region to us-east-1 or your preferred region
-   ```
-
-   Example S3 command:
-   ```sh
-   aws --endpoint-url=http://localhost:4566 --profile localstack s3 ls
-   ```
-
-## Local Deployment with LocalStack and Flask
-
-To run the application locally with LocalStack:
-
-1. **Start LocalStack**
-
-```sh
 docker-compose up -d
 ```
 
-2. **Set environment variables**
+### 3) Deploy local infrastructure + Lambda
 
-```sh
-export USE_LOCALSTACK=1
-export AWS_DEFAULT_REGION=us-east-1
-export BUCKET_NAME=your-s3-bucket-name
-export TABLE_NAME=your-dynamodb-table-name
+```bash
+bash scripts/deploy.sh
 ```
 
-3. **Create S3 bucket and DynamoDB table in LocalStack (if not already created)**
+This script is idempotent and safe to re-run:
+- ensures bucket and table exist
+- packages Lambda artifact
+- creates or updates Lambda function
+- creates or reuses API Gateway and deploys stage
 
-```sh
-aws --endpoint-url=http://localhost:4566 s3 mb s3://$BUCKET_NAME
-aws --endpoint-url=http://localhost:4566 dynamodb create-table \
-  --table-name $TABLE_NAME \
-  --attribute-definitions AttributeName=image_id,AttributeType=S \
-  --key-schema AttributeName=image_id,KeyType=HASH \
-  --billing-mode PAYPER_REQUEST
+## Configuration
+
+Environment variables used by the service:
+
+- `BUCKET_NAME` (default: `image-service-bucket`)
+- `TABLE_NAME` (default: `image-metadata`)
+- `AWS_DEFAULT_REGION` (default: `us-east-1`)
+- `PRESIGNED_URL_EXPIRATION` (default: `3600`)
+- `MAX_IMAGE_SIZE` (default: `10485760`)
+- `USE_LOCALSTACK` (`1` for local development)
+
+Environment variables used by deploy script:
+
+- `FUNCTION_NAME` (default: `imageService`)
+- `API_NAME` (default: `image-api`)
+- `STAGE_NAME` (default: `dev`)
+- `HANDLER_NAME` (default: `src.handlers.image_handler.lambda_handler`)
+- `LAMBDA_RUNTIME` (default: `python3.12`)
+
+## Testing
+
+Preferred (project-integrated):
+
+```bash
+python -m pytest tests -v
 ```
 
-4. **Install dependencies**
+Current baseline: `18` tests passing.
 
-```sh
-pip install -r requirements.txt
-pip install flask
-```
+## Operational Notes
 
-5. **Run the Flask app**
-
-```sh
-python main.py
-```
-
-The API will be available at: http://localhost:8000
-
-You can use curl or Postman to test the endpoints:
-
-```sh
-curl -X POST "http://localhost:8000/images" -F "user_id=user123" -F "filename=photo.jpg" -F "image_data=@/path/to/photo.jpg" -F "tags=vacation,beach" -F "description=Summer photo"
-curl "http://localhost:8000/images?user_id=user123"
-```
-
-### References
-- [How to use LocalStack with Docker Compose](https://docs.localstack.cloud/references/docker-compose/)
-- [How to use AWS CLI with LocalStack](https://docs.localstack.cloud/user-guide/aws-cli/)
-- [What is LocalStack?](https://localstack.cloud/)
-
-## Technology Stack
-
-- **Python 3.12**
-- **AWS Lambda** (serverless compute)
-- **Amazon S3** (image storage)
-- **DynamoDB** (metadata)
-- **API Gateway** (REST API)
-- **boto3** (AWS SDK)
-
-## Code Structure
-
-**Layered architecture:**
-- `handlers/` - API entry points
-- `services/` - Business logic
-- `repositories/` - Data access (S3, DynamoDB)
-- `models/` - Data structures
-- `common/` - Shared utilities
-
-**Simple, readable code:**
-- No type hints
-- Brief docstrings
-- Clean functions
-- Easy to understand
+- Structured JSON logging is enabled for handler and service flows.
+- Upload flow includes metadata-write rollback (deletes S3 object if metadata save fails).
+- Presigned URL generation failures now return explicit service errors (no silent fallback URL).

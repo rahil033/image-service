@@ -24,8 +24,9 @@ def lambda_handler(handler_name):
         @wraps(func)
         def wrapper(event, context):
             try:
-                logger.info(f"{handler_name} handler started", request_id=context.aws_request_id)
-                
+                request_id = getattr(context, 'aws_request_id', 'None')
+                logger.info(f"{handler_name} handler started", request_id=request_id)
+
                 # Create service instance
                 service = ImageService()
                 
