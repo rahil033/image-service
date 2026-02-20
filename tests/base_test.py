@@ -39,9 +39,10 @@ class BaseTestCase(unittest.TestCase):
         image_bytes = base64.b64encode(b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00')
         return image_bytes.decode('utf-8')
     
-    def create_api_event(self, body=None, path_params=None, query_params=None):
+    def create_api_event(self, body=None, path_params=None, query_params=None, method='GET'):
         """Create mock API Gateway event."""
         event = {
+            'httpMethod': method,
             'headers': {'Content-Type': 'application/json'},
             'requestContext': {'requestId': 'test-request-123'}
         }
